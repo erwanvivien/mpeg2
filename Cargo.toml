@@ -1,0 +1,15 @@
+[package]
+name = "mpeg2"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Display
+eframe = { version = "0.20" }
+epaint = { version = "0.20" }
+# Regex
+regex = { version = "1.7" }
+# Argument parsing
+clap = { version = "4.0", features = ["derive"] }
