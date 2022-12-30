@@ -21,15 +21,15 @@ YYYY   <-- 2 lignes de Y (reel_hauteur)
 BBRR   <-- 1 ligne de Cb / Cr (hauteur * 1/3)
 ```
 
-4. TODO
+4. À partir du dossier `tools/mpeg2dec`, en exécutant `./src/mpeg2dec -v ../../videos/elementary/pendulum.m2v -l -o null`, nous obtenons un fichier `tvid.log` contenant les métadatas par frame pour une vidéo donnée.
 
 5. Implémentation en Rust dans le dossier `src/` du projet.
 
-6. On a choisit de render en PPM ainsi que de rendre à l'écran
+6. On a choisi de render en PPM ainsi que de rendre à l'écran.
 
 7. L'option `--fps [fps]` permet de spécifier le nombre d'images par seconde à afficher.
 
-8. TODO
+8. Comme la question 4) avec le frame_period de chaque séquence en plus.
 
 9. TODO
 
