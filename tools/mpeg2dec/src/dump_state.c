@@ -215,6 +215,7 @@ void dump_state (FILE * f, mpeg2_state_t state, const mpeg2_info_t * info,
 	// TVID ADDED
 	if (simple_tvid_log)
 	{
+		// PIC <offset> <temp_ref> [PROG|RFF|TFF|BFF]
 		if (state == STATE_PICTURE || state == STATE_PICTURE_2ND)
 		{
 			const mpeg2_picture_t * pic = ((state == STATE_PICTURE) ?
@@ -236,6 +237,7 @@ void dump_state (FILE * f, mpeg2_state_t state, const mpeg2_info_t * info,
 			fprintf(f, "\n");
 		}
 
+		// SEQ <frame_period>
 		if (state == STATE_SEQUENCE || state == STATE_SEQUENCE_MODIFIED || state == STATE_SEQUENCE_REPEATED)
 		{
 			fprintf(f, "SEQ ");
