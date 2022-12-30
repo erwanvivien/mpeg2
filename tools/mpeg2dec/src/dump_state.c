@@ -219,8 +219,9 @@ void dump_state (FILE * f, mpeg2_state_t state, const mpeg2_info_t * info,
 		{
 			const mpeg2_picture_t * pic = ((state == STATE_PICTURE) ?
 				info->current_picture : info->current_picture_2nd);
-
-			fprintf (f, "%08x", offset);
+			
+			fprintf(f, "PIC ");
+			fprintf (f, "%08x ", offset);
 			fprintf (f, "%d", pic->temporal_reference);
 			
 			if (pic->flags & PIC_FLAG_PROGRESSIVE_FRAME)
@@ -232,6 +233,13 @@ void dump_state (FILE * f, mpeg2_state_t state, const mpeg2_info_t * info,
 			else
 				fprintf (f, " BFF");
 
+			fprintf(f, "\n");
+		}
+
+		if (state == STATE_SEQUENCE || state == STATE_SEQUENCE_MODIFIED || state == STATE_SEQUENCE_REPEATED)
+		{
+			fprintf(f, "SEQ ");
+			fprintf(f, "%d", info->sequence->frame_period);
 			fprintf(f, "\n");
 		}
 
