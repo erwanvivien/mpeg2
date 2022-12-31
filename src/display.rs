@@ -32,9 +32,9 @@ impl MyApp {
     pub const WINDOW_TITLE: &str = "Image Viewer";
 
     #[cfg(not(target_os = "windows"))]
-    pub const DEFAULT_PATH: &str = "videos/lci";
+    pub const DEFAULT_PATH: &str = "videos/pendulum";
     #[cfg(target_os = "windows")]
-    pub const DEFAULT_PATH: &str = r"videos\lci";
+    pub const DEFAULT_PATH: &str = r"videos/pendulum";
 
     pub fn new(files: Vec<PathBuf>, img_per_second: u64) -> Self {
         MyApp {
