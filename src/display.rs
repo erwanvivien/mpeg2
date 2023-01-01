@@ -3,7 +3,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::decode;
+use crate::{decode, metadata_parser::Picture};
 use eframe::{
     egui::{self, Context},
     Frame,
@@ -20,12 +20,16 @@ enum AppState {
 pub struct MyApp {
     texture: Option<egui::TextureHandle>,
     pathfile: Vec<PathBuf>,
+    meta: Vec<Picture>,
 
     index: isize,
 
     state: AppState,
     last_update: Instant,
     refresh_rate: Duration,
+
+    start_time: Instant,
+    never_paused: bool,
 }
 
 impl MyApp {
@@ -36,22 +40,37 @@ impl MyApp {
     #[cfg(target_os = "windows")]
     pub const DEFAULT_PATH: &str = r"videos/pendulum";
 
-    pub fn new(files: Vec<PathBuf>, img_per_second: u64) -> Self {
+    pub fn new(files: Vec<PathBuf>, img_per_second: u64, meta: Vec<Picture>) -> Self {
         MyApp {
             pathfile: files,
             index: 0,
+            meta,
             last_update: Instant::now(),
             state: AppState::Play,
             texture: None,
             refresh_rate: Duration::from_millis(1000 / img_per_second),
+
+            start_time: Instant::now(),
+            never_paused: true,
         }
     }
 }
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
+        let nb_img = self.pathfile.len() as isize;
+        let index = self.index.rem_euclid(nb_img) as usize;
+        let current_meta = &self.meta[index];
+
+        if self.never_paused {
+            println!(
+                "fps = {}",
+                (index as f64) / self.start_time.elapsed().as_secs_f64()
+            );
+        }
+
         let should_refresh = self.texture.is_none()
-            || (self.state == AppState::Play && self.last_update.elapsed() > self.refresh_rate)
+            || (self.state == AppState::Play && self.last_update.elapsed() > current_meta.duration)
             || self.state == AppState::Next
             || self.state == AppState::Previous;
 
@@ -60,8 +79,6 @@ impl eframe::App for MyApp {
             self.last_update = Instant::now();
 
             // Retrieve the right image path to load
-            let nb_img = self.pathfile.len() as isize;
-            let index = self.index.rem_euclid(nb_img) as usize;
             let path = &self.pathfile[index];
 
             // Print the path of the image to load (only in debug mode)
@@ -117,17 +134,20 @@ impl eframe::App for MyApp {
                         _ => self.state,
                     };
                     ctx.request_repaint();
+                    self.never_paused = false;
                 };
 
                 if prev.clicked() {
                     ctx.request_repaint();
                     self.index -= 1;
                     self.state = AppState::Previous;
+                    self.never_paused = false;
                 }
                 if next.clicked() {
                     ctx.request_repaint();
                     self.state = AppState::Next;
                     self.index += 1;
+                    self.never_paused = false;
                 }
             });
 

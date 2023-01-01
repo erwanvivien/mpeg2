@@ -1,3 +1,5 @@
+use std::{path::PathBuf, str::FromStr};
+
 use mpeg2::read_files;
 
 use clap::Parser;
@@ -23,10 +25,18 @@ fn main() {
 
     dbg!(img_per_second);
 
+    let meta = mpeg2::meta_decode(&PathBuf::from_str("./tools/mpeg2dec/tvid.log").unwrap());
+    if meta.is_err() {
+        panic!("Error while parsing metadata {:?}", meta.err());
+    }
+
+    let meta = meta.unwrap();
+    let app = mpeg2::MyApp::new(read_files(&pathdir), img_per_second, meta);
+
     // Run window
     eframe::run_native(
         mpeg2::MyApp::WINDOW_TITLE,
         Default::default(),
-        Box::new(move |_| Box::new(mpeg2::MyApp::new(read_files(&pathdir), img_per_second))),
+        Box::new(move |_| Box::new(app)),
     );
 }

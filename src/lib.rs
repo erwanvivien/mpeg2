@@ -1,12 +1,15 @@
 mod display;
 mod image;
+mod metadata_parser;
 mod pgm_parser;
 
 use std::{fs, path::PathBuf};
 
 use regex::Regex;
 
+pub use crate::metadata_parser::meta_decode;
 pub use crate::pgm_parser::decode;
+
 pub use display::MyApp;
 pub use image::RgbImage;
 
