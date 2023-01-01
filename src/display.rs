@@ -26,7 +26,7 @@ pub struct MyApp {
 
     state: AppState,
     last_update: Instant,
-    refresh_rate: Duration,
+    refresh_rate: Option<Duration>,
 
     start_time: Instant,
     never_paused: bool,
@@ -40,7 +40,7 @@ impl MyApp {
     #[cfg(target_os = "windows")]
     pub const DEFAULT_PATH: &str = r"videos/pendulum";
 
-    pub fn new(files: Vec<PathBuf>, img_per_second: u64, meta: Vec<Picture>) -> Self {
+    pub fn new(files: Vec<PathBuf>, img_per_second: Option<u64>, meta: Vec<Picture>) -> Self {
         MyApp {
             pathfile: files,
             index: 0,
@@ -48,7 +48,8 @@ impl MyApp {
             last_update: Instant::now(),
             state: AppState::Play,
             texture: None,
-            refresh_rate: Duration::from_millis(1000 / img_per_second),
+            refresh_rate: img_per_second
+                .map(|img_per_second| Duration::from_nanos(1_000_000_000 / img_per_second)),
 
             start_time: Instant::now(),
             never_paused: true,
@@ -62,15 +63,17 @@ impl eframe::App for MyApp {
         let index = self.index.rem_euclid(nb_img) as usize;
         let current_meta = &self.meta[index];
 
-        if self.never_paused {
+        if self.never_paused && self.index % 100 == 0 {
             println!(
                 "fps = {}",
-                (index as f64) / self.start_time.elapsed().as_secs_f64()
+                (self.index as f64) / self.start_time.elapsed().as_secs_f64()
             );
         }
 
+        let refresh_duration = self.refresh_rate.unwrap_or(current_meta.duration);
+
         let should_refresh = self.texture.is_none()
-            || (self.state == AppState::Play && self.last_update.elapsed() > current_meta.duration)
+            || (self.state == AppState::Play && self.last_update.elapsed() > refresh_duration)
             || self.state == AppState::Next
             || self.state == AppState::Previous;
 
@@ -111,7 +114,7 @@ impl eframe::App for MyApp {
 
         // Request a repaint after the refresh rate (takes into account the time it took to load the image)
         if self.state == AppState::Play {
-            ctx.request_repaint_after(self.last_update + self.refresh_rate - Instant::now());
+            ctx.request_repaint_after(self.last_update + refresh_duration - Instant::now());
         }
 
         // Display the image

@@ -11,8 +11,8 @@ struct Args {
     #[arg(short, long, default_value_t = mpeg2::MyApp::DEFAULT_PATH.to_string())]
     pathdir: String,
 
-    #[arg(short, long, default_value_t = 25)]
-    fps: u64,
+    #[arg(short, long)]
+    fps: Option<u64>,
 }
 
 fn main() {
