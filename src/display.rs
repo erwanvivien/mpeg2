@@ -3,7 +3,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{decode, metadata_parser::Picture};
+use crate::{
+    decode,
+    metadata_parser::{Picture, PictureType},
+};
 use eframe::{
     egui::{self, Context},
     Frame,
@@ -93,8 +96,33 @@ impl eframe::App for MyApp {
             let size = [img.width(), img.height()];
             let pixels = img.get_rgba();
 
+            // Skip field + vertical nearest neighbour upscaling
+            let top_pixels: Vec<u8> = pixels
+                .chunks_exact(img.width() * 4 * 2)
+                .flat_map(|row_pair| {
+                    let top_row = &row_pair[..img.width() * 4];
+                    [top_row, top_row].concat()
+                })
+                .collect();
+            let bot_pixels: Vec<u8> = pixels
+                .chunks_exact(img.width() * 4 * 2)
+                .flat_map(|row_pair| {
+                    let bot_row = &row_pair[img.width() * 4..];
+                    [bot_row, bot_row].concat()
+                })
+                .collect();
+
             // Convert the image to a ColorImage
-            let image = epaint::ColorImage::from_rgba_unmultiplied(size, &pixels);
+            let image = epaint::ColorImage::from_rgba_unmultiplied(
+                size,
+                match current_meta.picture_type {
+                    PictureType::TopFieldFirst => &top_pixels,
+                    PictureType::BottomFieldFirst => &bot_pixels,
+                    PictureType::Progressive => todo!(),
+                    PictureType::RepeatFirstField => todo!(),
+                },
+            );
+
             if let Some(texture) = &mut self.texture {
                 // Other loads
                 texture.set(image, Default::default());
