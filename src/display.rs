@@ -22,6 +22,8 @@ enum AppState {
 
 pub struct MyApp {
     texture: Option<egui::TextureHandle>,
+    buffered_texture: Option<egui::TextureHandle>,
+    buffered_field: bool,
     pathfile: Vec<PathBuf>,
     meta: Vec<Picture>,
 
@@ -51,6 +53,8 @@ impl MyApp {
             last_update: Instant::now(),
             state: AppState::Play,
             texture: None,
+            buffered_texture: None,
+            buffered_field: false,
             refresh_rate: img_per_second
                 .map(|img_per_second| Duration::from_nanos(1_000_000_000 / img_per_second)),
 
@@ -76,9 +80,16 @@ impl eframe::App for MyApp {
         let refresh_duration = self.refresh_rate.unwrap_or(current_meta.duration);
 
         let should_refresh = self.texture.is_none()
-            || (self.state == AppState::Play && self.last_update.elapsed() > refresh_duration)
+            || (self.state == AppState::Play
+                && self.last_update.elapsed() > refresh_duration
+                && !self.buffered_field)
             || self.state == AppState::Next
             || self.state == AppState::Previous;
+
+        if self.buffered_field {
+            std::mem::swap(&mut self.texture, &mut self.buffered_texture);
+            self.buffered_field = false;
+        }
 
         if should_refresh {
             // Update the last_update time
@@ -118,8 +129,7 @@ impl eframe::App for MyApp {
                 match current_meta.picture_type {
                     PictureType::TopFieldFirst => &top_pixels,
                     PictureType::BottomFieldFirst => &bot_pixels,
-                    PictureType::Progressive => todo!(),
-                    PictureType::RepeatFirstField => todo!(),
+                    _ => todo!(),
                 },
             );
 
@@ -128,7 +138,29 @@ impl eframe::App for MyApp {
                 texture.set(image, Default::default());
             } else {
                 // On first load
-                self.texture = Some(ctx.load_texture("my-image", image, Default::default()));
+                self.texture = Some(ctx.load_texture("image-1", image, Default::default()));
+            }
+
+            if current_meta.picture_type != PictureType::Progressive {
+                let image = epaint::ColorImage::from_rgba_unmultiplied(
+                    size,
+                    match current_meta.picture_type {
+                        PictureType::TopFieldFirst => &bot_pixels,
+                        PictureType::BottomFieldFirst => &top_pixels,
+                        _ => todo!(),
+                    },
+                );
+
+                if let Some(texture) = &mut self.buffered_texture {
+                    // Other loads
+                    texture.set(image, Default::default());
+                } else {
+                    // On first load
+                    self.buffered_texture =
+                        Some(ctx.load_texture("image-2", image, Default::default()));
+                }
+
+                self.buffered_field = true;
             }
 
             if self.state == AppState::Play {
