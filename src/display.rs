@@ -8,7 +8,7 @@ use crate::{
     metadata_parser::{Picture, PictureType},
 };
 use eframe::{
-    egui::{self, Context},
+    egui::{self, ColorImage, Context},
     Frame,
 };
 
@@ -21,13 +21,14 @@ enum AppState {
 }
 
 pub struct MyApp {
-    texture: Option<egui::TextureHandle>,
-    buffered_texture: Option<egui::TextureHandle>,
-    buffered_field: bool,
     pathfile: Vec<PathBuf>,
     meta: Vec<Picture>,
 
     index: isize,
+    loaded_index: isize,
+    first_field: bool,
+    texture_1: egui::TextureHandle,
+    texture_2: egui::TextureHandle,
 
     state: AppState,
     last_update: Instant,
@@ -45,16 +46,34 @@ impl MyApp {
     #[cfg(target_os = "windows")]
     pub const DEFAULT_PATH: &str = r"videos/pendulum";
 
-    pub fn new(files: Vec<PathBuf>, img_per_second: Option<u64>, meta: Vec<Picture>) -> Self {
+    pub fn new(
+        cc: &eframe::CreationContext<'_>,
+        files: Vec<PathBuf>,
+        img_per_second: Option<u64>,
+        meta: Vec<Picture>,
+    ) -> Self {
+        let default_texture_size = [480, 620];
+
         MyApp {
             pathfile: files,
-            index: 0,
             meta,
-            last_update: Instant::now(),
+
+            index: 0,
+            loaded_index: -1,
+            first_field: true,
+            texture_1: cc.egui_ctx.load_texture(
+                "texture-1",
+                ColorImage::new(default_texture_size, egui::Color32::BLACK),
+                Default::default(),
+            ),
+            texture_2: cc.egui_ctx.load_texture(
+                "texture-2",
+                ColorImage::new(default_texture_size, egui::Color32::BLACK),
+                Default::default(),
+            ),
+
             state: AppState::Play,
-            texture: None,
-            buffered_texture: None,
-            buffered_field: false,
+            last_update: Instant::now(),
             refresh_rate: img_per_second
                 .map(|img_per_second| Duration::from_nanos(1_000_000_000 / img_per_second)),
 
@@ -70,7 +89,7 @@ impl eframe::App for MyApp {
         let index = self.index.rem_euclid(nb_img) as usize;
         let current_meta = &self.meta[index];
 
-        if self.never_paused && self.index % 100 == 0 {
+        if !self.never_paused && self.index % 100 == 0 {
             println!(
                 "fps = {}",
                 (self.index as f64) / self.start_time.elapsed().as_secs_f64()
@@ -79,19 +98,22 @@ impl eframe::App for MyApp {
 
         let refresh_duration = self.refresh_rate.unwrap_or(current_meta.duration);
 
-        let should_refresh = self.texture.is_none()
-            || (self.state == AppState::Play
-                && self.last_update.elapsed() > refresh_duration
-                && !self.buffered_field)
-            || self.state == AppState::Next
-            || self.state == AppState::Previous;
+        let load_new_frame = match self.state {
+            AppState::Play => self.last_update.elapsed() >= refresh_duration,
+            AppState::Next | AppState::Previous => self.index != self.loaded_index,
+            AppState::Pause => false,
+        };
 
-        if self.buffered_field {
-            std::mem::swap(&mut self.texture, &mut self.buffered_texture);
-            self.buffered_field = false;
+        // Switch to second field after half the refresh duration
+        if current_meta.picture_type != PictureType::Progressive
+            && self.state == AppState::Play
+            && self.last_update.elapsed() >= refresh_duration.div_f32(2.0)
+            && self.first_field
+        {
+            self.first_field = false;
         }
 
-        if should_refresh {
+        if load_new_frame {
             // Update the last_update time
             self.last_update = Instant::now();
 
@@ -108,17 +130,18 @@ impl eframe::App for MyApp {
             let pixels = img.get_rgba();
 
             // Skip field + vertical nearest neighbour upscaling
+            let row_nb_bytes = img.width() * 4;
             let top_pixels: Vec<u8> = pixels
-                .chunks_exact(img.width() * 4 * 2)
+                .chunks_exact(row_nb_bytes * 2)
                 .flat_map(|row_pair| {
-                    let top_row = &row_pair[..img.width() * 4];
+                    let top_row = &row_pair[..row_nb_bytes];
                     [top_row, top_row].concat()
                 })
                 .collect();
             let bot_pixels: Vec<u8> = pixels
-                .chunks_exact(img.width() * 4 * 2)
+                .chunks_exact(row_nb_bytes * 2)
                 .flat_map(|row_pair| {
-                    let bot_row = &row_pair[img.width() * 4..];
+                    let bot_row = &row_pair[row_nb_bytes..];
                     [bot_row, bot_row].concat()
                 })
                 .collect();
@@ -127,54 +150,45 @@ impl eframe::App for MyApp {
             let image = epaint::ColorImage::from_rgba_unmultiplied(
                 size,
                 match current_meta.picture_type {
+                    PictureType::Progressive => &pixels,
+                    PictureType::RepeatFirstField => &top_pixels,
                     PictureType::TopFieldFirst => &top_pixels,
                     PictureType::BottomFieldFirst => &bot_pixels,
-                    _ => todo!(),
                 },
             );
 
-            if let Some(texture) = &mut self.texture {
-                // Other loads
-                texture.set(image, Default::default());
-            } else {
-                // On first load
-                self.texture = Some(ctx.load_texture("image-1", image, Default::default()));
-            }
+            self.texture_1.set(image, Default::default());
 
             if current_meta.picture_type != PictureType::Progressive {
                 let image = epaint::ColorImage::from_rgba_unmultiplied(
                     size,
                     match current_meta.picture_type {
+                        PictureType::RepeatFirstField => &top_pixels,
                         PictureType::TopFieldFirst => &bot_pixels,
                         PictureType::BottomFieldFirst => &top_pixels,
-                        _ => todo!(),
+                        _ => unreachable!(),
                     },
                 );
 
-                if let Some(texture) = &mut self.buffered_texture {
-                    // Other loads
-                    texture.set(image, Default::default());
-                } else {
-                    // On first load
-                    self.buffered_texture =
-                        Some(ctx.load_texture("image-2", image, Default::default()));
-                }
-
-                self.buffered_field = true;
+                self.texture_2.set(image, Default::default());
             }
+
+            self.loaded_index = self.index;
 
             if self.state == AppState::Play {
                 self.index += 1;
+                self.first_field = true;
             }
         }
 
-        if matches!(self.state, AppState::Next | AppState::Previous) {
-            self.state = AppState::Pause;
-        }
-
-        // Request a repaint after the refresh rate (takes into account the time it took to load the image)
-        if self.state == AppState::Play {
-            ctx.request_repaint_after(self.last_update + refresh_duration - Instant::now());
+        match self.state {
+            // Request a repaint after the refresh rate (takes into account the time it took to load the image)
+            AppState::Play => ctx.request_repaint_after(
+                // 4 times the refresh rate to avoid missing frames
+                self.last_update + refresh_duration.div_f32(4.0) - Instant::now(),
+            ),
+            AppState::Next | AppState::Previous => self.state = AppState::Pause,
+            _ => (),
         }
 
         // Display the image
@@ -202,20 +216,37 @@ impl eframe::App for MyApp {
 
                 if prev.clicked() {
                     ctx.request_repaint();
-                    self.index -= 1;
+                    if current_meta.picture_type != PictureType::Progressive {
+                        if self.first_field {
+                            self.index -= 1;
+                        }
+                        self.first_field = !self.first_field;
+                    } else {
+                        self.index -= 1;
+                    }
                     self.state = AppState::Previous;
                     self.never_paused = false;
                 }
+
                 if next.clicked() {
                     ctx.request_repaint();
+                    if current_meta.picture_type != PictureType::Progressive {
+                        if !self.first_field {
+                            self.index += 1;
+                        }
+                        self.first_field = !self.first_field;
+                    } else {
+                        self.index += 1;
+                    }
                     self.state = AppState::Next;
-                    self.index += 1;
                     self.never_paused = false;
                 }
             });
 
-            if let Some(texture) = &self.texture {
-                ui.image(texture, texture.size_vec2());
+            if self.first_field {
+                ui.image(&self.texture_1, self.texture_1.size_vec2());
+            } else {
+                ui.image(&self.texture_2, self.texture_2.size_vec2());
             }
         });
     }

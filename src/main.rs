@@ -31,12 +31,18 @@ fn main() {
     }
 
     let meta = meta.unwrap();
-    let app = mpeg2::MyApp::new(read_files(&pathdir), img_per_second, meta);
 
     // Run window
     eframe::run_native(
         mpeg2::MyApp::WINDOW_TITLE,
         Default::default(),
-        Box::new(move |_| Box::new(app)),
+        Box::new(move |cc| {
+            Box::new(mpeg2::MyApp::new(
+                cc,
+                read_files(&pathdir),
+                img_per_second,
+                meta,
+            ))
+        }),
     );
 }
