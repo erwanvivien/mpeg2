@@ -34,3 +34,16 @@ BBRR   <-- 1 ligne de Cb / Cr (hauteur * 1/3)
 9. TODO
 
 10. TODO
+
+## Partie B - Jouer un flux MPEG-2 élémentaire de test
+
+1. Le pid du flux vidéo est 0x1422, celui du flux audio est 0x1423.
+
+2. Nous avons utilisé les commandes suivantes pour générer les PGMs à partir d'un PID de MPEG-TS :
+
+-   `ffplay videos/ts/cnn.ts`
+-   `./tools/mpeg2dec/src/mpeg2dec videos/ts/cnn.ts -t 0x1422 -o pgm`
+
+3. `cargo run --release -- --pathdir="./videos/ts/cnn_pgm"`
+
+4. La moitié des frames sont progressives, les autres sont entrelacées.
