@@ -1,4 +1,4 @@
-use std::{path::PathBuf, str::FromStr};
+use std::path::PathBuf;
 
 use mpeg2::read_files;
 
@@ -25,7 +25,7 @@ fn main() {
 
     dbg!(img_per_second);
 
-    let meta = mpeg2::meta_decode(&PathBuf::from_str("./tools/mpeg2dec/tvid.log").unwrap());
+    let meta = mpeg2::meta_decode(&PathBuf::new().join(&pathdir).join("tvid.log"));
     if meta.is_err() {
         panic!("Error while parsing metadata {:?}", meta.err());
     }
