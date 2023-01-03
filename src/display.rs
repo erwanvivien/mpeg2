@@ -36,6 +36,8 @@ pub struct MyApp {
 
     last_fps_update: (Instant, isize),
     last_fps: f64,
+
+    global_vec: Vec<u8>,
 }
 
 impl MyApp {
@@ -79,6 +81,8 @@ impl MyApp {
 
             last_fps_update: (Instant::now(), 0),
             last_fps: 0f64,
+
+            global_vec: Vec::new(),
         }
     }
 }
@@ -94,6 +98,9 @@ impl eframe::App for MyApp {
         if last_update >= 1f64 {
             self.last_fps_update = (Instant::now(), self.index);
             self.last_fps = ((self.index - last_index) as f64) / last_update;
+            if current_meta.picture_type != PictureType::Progressive {
+                self.last_fps *= 2f64;
+            }
         }
 
         let refresh_duration = self.refresh_rate.unwrap_or(current_meta.duration);
@@ -128,32 +135,38 @@ impl eframe::App for MyApp {
             let img = decode(path).unwrap();
             let size = [img.width(), img.height()];
             let pixels = img.get_rgba();
+            if self.global_vec.len() != pixels.len() * 2 {
+                self.global_vec = vec![0; pixels.len() * 2];
+            }
 
             // Skip field + vertical nearest neighbour upscaling
             let row_nb_bytes = img.width() * 4;
-            let top_pixels: Vec<u8> = pixels
-                .chunks_exact(row_nb_bytes * 2)
-                .flat_map(|row_pair| {
-                    let top_row = &row_pair[..row_nb_bytes];
-                    [top_row, top_row].concat()
-                })
-                .collect();
-            let bot_pixels: Vec<u8> = pixels
-                .chunks_exact(row_nb_bytes * 2)
-                .flat_map(|row_pair| {
-                    let bot_row = &row_pair[row_nb_bytes..];
-                    [bot_row, bot_row].concat()
-                })
-                .collect();
+            let idx = (0..img.height())
+                .step_by(2)
+                .chain((1..img.height()).step_by(2));
+
+            for (i, idx) in idx.enumerate() {
+                let start = idx * row_nb_bytes;
+                let end = (idx + 1) * row_nb_bytes;
+                let row = &pixels[start..end];
+
+                let i = i * 2;
+                self.global_vec[i * row_nb_bytes..(i + 1) * row_nb_bytes].copy_from_slice(row);
+                self.global_vec[(i + 1) * row_nb_bytes..(i + 2) * row_nb_bytes]
+                    .copy_from_slice(row);
+            }
+
+            let top_pixels = &self.global_vec[..pixels.len()];
+            let bot_pixels = &self.global_vec[pixels.len()..];
 
             // Convert the image to a ColorImage
             let image = epaint::ColorImage::from_rgba_unmultiplied(
                 size,
                 match current_meta.picture_type {
                     PictureType::Progressive => &pixels,
-                    PictureType::RepeatFirstField => &top_pixels,
-                    PictureType::TopFieldFirst => &top_pixels,
-                    PictureType::BottomFieldFirst => &bot_pixels,
+                    PictureType::RepeatFirstField => top_pixels,
+                    PictureType::TopFieldFirst => top_pixels,
+                    PictureType::BottomFieldFirst => bot_pixels,
                 },
             );
 
@@ -163,9 +176,9 @@ impl eframe::App for MyApp {
                 let image = epaint::ColorImage::from_rgba_unmultiplied(
                     size,
                     match current_meta.picture_type {
-                        PictureType::RepeatFirstField => &top_pixels,
-                        PictureType::TopFieldFirst => &bot_pixels,
-                        PictureType::BottomFieldFirst => &top_pixels,
+                        PictureType::RepeatFirstField => top_pixels,
+                        PictureType::TopFieldFirst => bot_pixels,
+                        PictureType::BottomFieldFirst => top_pixels,
                         _ => unreachable!(),
                     },
                 );
@@ -184,8 +197,10 @@ impl eframe::App for MyApp {
         match self.state {
             // Request a repaint after the refresh rate (takes into account the time it took to load the image)
             AppState::Play => ctx.request_repaint_after(
-                // 4 times the refresh rate to avoid missing frames
-                self.last_update + refresh_duration.div_f32(4.0) - Instant::now(),
+                refresh_duration
+                    .div_f32(2.0)
+                    .checked_sub(Instant::now() - self.last_update)
+                    .unwrap_or(Duration::from_secs(0)),
             ),
             AppState::Next | AppState::Previous => self.state = AppState::Pause,
             _ => (),
