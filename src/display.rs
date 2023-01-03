@@ -34,8 +34,8 @@ pub struct MyApp {
     last_update: Instant,
     refresh_rate: Option<Duration>,
 
-    start_time: Instant,
-    never_paused: bool,
+    last_fps_update: (Instant, isize),
+    last_fps: f64,
 }
 
 impl MyApp {
@@ -77,8 +77,8 @@ impl MyApp {
             refresh_rate: img_per_second
                 .map(|img_per_second| Duration::from_nanos(1_000_000_000 / img_per_second)),
 
-            start_time: Instant::now(),
-            never_paused: true,
+            last_fps_update: (Instant::now(), 0),
+            last_fps: 0f64,
         }
     }
 }
@@ -89,11 +89,11 @@ impl eframe::App for MyApp {
         let index = self.index.rem_euclid(nb_img) as usize;
         let current_meta = &self.meta[index];
 
-        if !self.never_paused && self.index % 100 == 0 {
-            println!(
-                "fps = {}",
-                (self.index as f64) / self.start_time.elapsed().as_secs_f64()
-            );
+        let (last_update, last_index) = self.last_fps_update;
+        let last_update = last_update.elapsed().as_secs_f64();
+        if last_update >= 1f64 {
+            self.last_fps_update = (Instant::now(), self.index);
+            self.last_fps = ((self.index - last_index) as f64) / last_update;
         }
 
         let refresh_duration = self.refresh_rate.unwrap_or(current_meta.duration);
@@ -204,6 +204,13 @@ impl eframe::App for MyApp {
 
                 let next = ui.button("Next");
 
+                ui.add(egui::Label::new(format!(
+                    "Frame {}/{} - {:.2} fps",
+                    (self.index + 1) % nb_img,
+                    nb_img,
+                    self.last_fps,
+                )));
+
                 if play_pause.clicked() {
                     self.state = match self.state {
                         AppState::Play => AppState::Pause,
@@ -211,7 +218,6 @@ impl eframe::App for MyApp {
                         _ => self.state,
                     };
                     ctx.request_repaint();
-                    self.never_paused = false;
                 };
 
                 if prev.clicked() {
@@ -225,7 +231,6 @@ impl eframe::App for MyApp {
                         self.index -= 1;
                     }
                     self.state = AppState::Previous;
-                    self.never_paused = false;
                 }
 
                 if next.clicked() {
@@ -239,7 +244,6 @@ impl eframe::App for MyApp {
                         self.index += 1;
                     }
                     self.state = AppState::Next;
-                    self.never_paused = false;
                 }
             });
 
