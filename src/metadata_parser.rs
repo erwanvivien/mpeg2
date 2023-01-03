@@ -54,7 +54,7 @@ pub fn meta_decode(path: &PathBuf) -> Result<Vec<Picture>, &'static str> {
         if line.starts_with("SEQ") {
             let frame_period = words
                 .get(1)
-                .unwrap_or(&"25")
+                .unwrap_or(&"1080000")
                 .parse::<usize>()
                 .map_err(|_| "Could not parse frame_period")?;
 
