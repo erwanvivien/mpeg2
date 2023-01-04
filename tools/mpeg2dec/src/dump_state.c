@@ -237,11 +237,15 @@ void dump_state (FILE * f, mpeg2_state_t state, const mpeg2_info_t * info,
 			fprintf(f, "\n");
 		}
 
-		// SEQ <frame_period>
+		// SEQ <frame_period> [PROG]
 		if (state == STATE_SEQUENCE || state == STATE_SEQUENCE_MODIFIED || state == STATE_SEQUENCE_REPEATED)
 		{
 			fprintf(f, "SEQ ");
 			fprintf(f, "%d", info->sequence->frame_period);
+
+			if (info->sequence->flags & SEQ_FLAG_PROGRESSIVE_SEQUENCE)
+				fprintf(f, " PROG");
+
 			fprintf(f, "\n");
 		}
 

@@ -31,13 +31,13 @@ BBRR   <-- 1 ligne de Cb / Cr (hauteur * 1/3)
 
 8. Comme la question 4) avec le frame_period de chaque séquence en plus.
 
-9. TODO
+9. Implémenté.
 
-10. TODO
+10. Implémenté.
 
-## Partie B - Jouer un flux MPEG-2 élémentaire de test
+## Partie B - Jouer un flux vidéo de chaîne d’infos américaine assez notoire
 
-1. Le pid du flux vidéo est 0x1422, celui du flux audio est 0x1423.
+1. Le PID du flux vidéo est 0x1422, celui du flux audio est 0x1423.
 
 2. Nous avons utilisé les commandes suivantes pour générer les PGMs à partir d'un PID de MPEG-TS :
 
@@ -47,3 +47,21 @@ BBRR   <-- 1 ligne de Cb / Cr (hauteur * 1/3)
 3. `cargo run --release -- --pathdir="./videos/ts/cnn_pgm"`
 
 4. La moitié des frames sont progressives, les autres sont entrelacées.
+
+5. Le flag progressive n'apparaît pour aucune des séquences alors que la moitié des frames sont progressives.
+
+6. Nous pouvons forcer le désentrelaceur pour chaque vidéo. Cela n'aura que très peu d'impact sur celles dont les séquences sont progressives.
+
+## Partie C - Jouer un flux vidéo de chaînes de divertissement asiatiques
+
+1. Le PID du troisième flux vidéo est 0x3fd.
+
+2. Fait
+
+3. On remarque sur la séquence des effets que la vidéo est ralentie alors que les effets ne le sont pas.
+
+4. Le PID du premier flux vidéo est 0x3e9.
+
+5. Fait
+
+6. TODO
