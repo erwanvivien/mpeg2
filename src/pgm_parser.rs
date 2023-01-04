@@ -115,7 +115,7 @@ fn parse_headers(buf: &mut BufReader<File>) -> Result<Header, &'static str> {
     })
 }
 
-pub fn decode(path: &PathBuf) -> Result<RgbImage, &'static str> {
+pub fn decode(path: &PathBuf, image: &mut RgbImage) -> Result<(), &'static str> {
     // Open file
     let file = File::open(path).map_err(|_| "Could not open file")?;
     let mut reader = BufReader::new(file);
@@ -149,7 +149,9 @@ pub fn decode(path: &PathBuf) -> Result<RgbImage, &'static str> {
             .map_err(|_| "Could not read v")?;
     }
 
-    let mut img = RgbImage::with_capacity(img_width, img_height);
+    if image.len() != img_width * img_height {
+        *image = RgbImage::with_capacity(img_width, img_height)
+    }
 
     for i in 0..img_height {
         for j in 0..img_width {
@@ -165,9 +167,9 @@ pub fn decode(path: &PathBuf) -> Result<RgbImage, &'static str> {
             let g = g.max(0f32).min(255f32) as u8;
             let b = b.max(0f32).min(255f32) as u8;
 
-            img[i][j] = Rgb::new(r, g, b);
+            image[i][j] = Rgb::new(r, g, b);
         }
     }
 
-    Ok(img)
+    Ok(())
 }

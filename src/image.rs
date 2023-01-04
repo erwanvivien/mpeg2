@@ -82,6 +82,10 @@ impl RgbImage {
     pub fn height(&self) -> usize {
         self.height
     }
+
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
 }
 
 impl Index<usize> for RgbImage {

@@ -6,6 +6,7 @@ use std::{
 use crate::{
     decode,
     metadata_parser::{Picture, PictureType},
+    RgbImage,
 };
 use eframe::{
     egui::{self, ColorImage, Context},
@@ -38,6 +39,7 @@ pub struct MyApp {
     last_fps: f64,
 
     global_vec: Vec<u8>,
+    rgb_image: RgbImage,
 }
 
 impl MyApp {
@@ -83,6 +85,7 @@ impl MyApp {
             last_fps: 0f64,
 
             global_vec: Vec::new(),
+            rgb_image: RgbImage::with_capacity(0, 0),
         }
     }
 }
@@ -132,7 +135,9 @@ impl eframe::App for MyApp {
             dbg!(&path);
 
             // Load the image and convert to RGBA pixels
-            let img = decode(path).unwrap();
+            decode(path, &mut self.rgb_image).unwrap();
+
+            let img = &self.rgb_image;
             let size = [img.width(), img.height()];
             let pixels = img.get_rgba();
             if self.global_vec.len() != pixels.len() * 2 {
