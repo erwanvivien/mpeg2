@@ -1,5 +1,5 @@
 // SEQ <frame_period>
-// PIC <offset> <temp_ref> [PROG|RFF|TFF|BFF]
+// PIC <offset> <temp_ref> [PROG] [RFF] [TFF]
 // PIC ...
 // SEQ ...
 
@@ -7,30 +7,12 @@ use std::io::BufRead;
 use std::time::Duration;
 use std::{fs::File, io::BufReader, path::PathBuf};
 
-#[derive(Debug, PartialEq, PartialOrd, Eq, Ord)]
-pub enum PictureType {
-    Progressive,
-    RepeatFirstField,
-    TopFieldFirst,
-    BottomFieldFirst,
-}
-
-impl From<&str> for PictureType {
-    fn from(s: &str) -> Self {
-        match s {
-            "PROG" => PictureType::Progressive,
-            "RFF" => PictureType::RepeatFirstField,
-            "TFF" => PictureType::TopFieldFirst,
-            "BFF" => PictureType::BottomFieldFirst,
-            _ => PictureType::Progressive,
-        }
-    }
-}
+use crate::flag::FrameMode;
 
 #[derive(Debug, PartialEq, PartialOrd, Eq, Ord)]
 pub struct Picture {
     pub duration: Duration,
-    pub picture_type: PictureType,
+    pub picture_type: FrameMode,
     id: usize,
 }
 
@@ -68,14 +50,16 @@ pub fn meta_decode(path: &PathBuf) -> Result<Vec<Picture>, &'static str> {
             let temp_ref = words[2]
                 .parse::<usize>()
                 .map_err(|_| "Could not parse temp_ref")?;
-            let picture_type = PictureType::from(words[3]);
+
+            let frame_mode = FrameMode::from(words[3..].iter());
 
             let frame_period =
                 sequence_frame_period.expect("You should have a SEQ before PIC") as f64;
+
             let picture = Picture {
                 id: temp_ref + last,
                 duration: Duration::from_millis((27_000_000f64 / frame_period) as u64),
-                picture_type,
+                picture_type: frame_mode,
             };
 
             pictures.push(picture);

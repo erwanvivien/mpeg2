@@ -215,7 +215,7 @@ void dump_state (FILE * f, mpeg2_state_t state, const mpeg2_info_t * info,
 	// TVID ADDED
 	if (simple_tvid_log)
 	{
-		// PIC <offset> <temp_ref> [PROG|RFF|TFF|BFF]
+		// PIC <offset> <temp_ref> [PROG] [RFF] [TFF]
 		if (state == STATE_PICTURE || state == STATE_PICTURE_2ND)
 		{
 			const mpeg2_picture_t * pic = ((state == STATE_PICTURE) ?
@@ -231,8 +231,6 @@ void dump_state (FILE * f, mpeg2_state_t state, const mpeg2_info_t * info,
 				fprintf(f, " RFF");	
 			if (pic->flags & PIC_FLAG_TOP_FIELD_FIRST)
 				fprintf (f, " TFF");
-			else
-				fprintf (f, " BFF");
 
 			fprintf(f, "\n");
 		}

@@ -13,6 +13,9 @@ struct Args {
 
     #[arg(short, long)]
     fps: Option<u64>,
+
+    #[arg(short, long)]
+    mode: Option<String>,
 }
 
 fn main() {
@@ -21,16 +24,17 @@ fn main() {
     let Args {
         fps: img_per_second,
         pathdir,
+        mode,
     } = args;
 
     dbg!(img_per_second);
 
     let meta = mpeg2::meta_decode(&PathBuf::new().join(&pathdir).join("tvid.log"));
-    if meta.is_err() {
+    if mode.is_none() && meta.is_err() {
         panic!("Error while parsing metadata {:?}", meta.err());
     }
 
-    let meta = meta.unwrap();
+    let meta = meta.ok();
 
     // Run window
     eframe::run_native(
@@ -41,6 +45,7 @@ fn main() {
                 cc,
                 read_files(&pathdir),
                 img_per_second,
+                mode,
                 meta,
             ))
         }),

@@ -3,11 +3,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{
-    decode,
-    metadata_parser::{Picture, PictureType},
-    RgbImage,
-};
+use crate::{decode, flag::FrameMode, metadata_parser::Picture, RgbImage};
 use eframe::{
     egui::{self, ColorImage, Context},
     Frame,
@@ -21,13 +17,41 @@ enum AppState {
     Previous,
 }
 
+#[derive(Debug)]
+struct MpegFrame {
+    pub id: isize,
+    pub mode: FrameMode,
+    pub duration: Duration,
+}
+
+impl MpegFrame {
+    pub fn interlaced(&self) -> bool {
+        self.mode != FrameMode::PROG
+    }
+
+    pub fn repeat_first_field(&self) -> bool {
+        self.mode == FrameMode::RFF_TFF || self.mode == FrameMode::RFF_BFF
+    }
+
+    pub fn second_field_display_idx(&self) -> i8 {
+        match self.mode {
+            FrameMode::RFF_TFF | FrameMode::RFF_BFF => 2,
+            FrameMode::TFF | FrameMode::BFF => 1,
+            _ => 0,
+        }
+    }
+}
+
 pub struct MyApp {
     pathfile: Vec<PathBuf>,
-    meta: Vec<Picture>,
+    mode: Option<FrameMode>,
+    meta: Option<Vec<Picture>>,
 
     index: isize,
-    loaded_index: isize,
-    first_field: bool,
+    loaded_frame: MpegFrame,
+
+    field_display_idx: i8,
+
     texture_1: egui::TextureHandle,
     texture_2: egui::TextureHandle,
 
@@ -54,17 +78,26 @@ impl MyApp {
         cc: &eframe::CreationContext<'_>,
         files: Vec<PathBuf>,
         img_per_second: Option<u64>,
-        meta: Vec<Picture>,
+        mode: Option<String>,
+        meta: Option<Vec<Picture>>,
     ) -> Self {
-        let default_texture_size = [480, 620];
+        let default_texture_size = [480, 680];
 
         MyApp {
             pathfile: files,
+            mode: mode
+                .map(|m| FrameMode::from(m.trim().split_whitespace().collect::<Vec<_>>().iter())),
             meta,
 
             index: 0,
-            loaded_index: -1,
-            first_field: true,
+            loaded_frame: MpegFrame {
+                id: 0,
+                mode: FrameMode::PROG,
+                duration: Duration::from_millis(0),
+            },
+
+            field_display_idx: 0,
+
             texture_1: cc.egui_ctx.load_texture(
                 "texture-1",
                 ColorImage::new(default_texture_size, egui::Color32::BLACK),
@@ -94,34 +127,30 @@ impl eframe::App for MyApp {
     fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
         let nb_img = self.pathfile.len() as isize;
         let index = self.index.rem_euclid(nb_img) as usize;
-        let current_meta = &self.meta[index];
 
         let (last_update, last_index) = self.last_fps_update;
         let last_update = last_update.elapsed().as_secs_f64();
-        if last_update >= 1f64 {
+        if self.state == AppState::Play && last_update >= 1f64 {
             self.last_fps_update = (Instant::now(), self.index);
             self.last_fps = ((self.index - last_index) as f64) / last_update;
-            if current_meta.picture_type != PictureType::Progressive {
+            if self.loaded_frame.interlaced() {
                 self.last_fps *= 2f64;
             }
         }
 
-        let refresh_duration = self.refresh_rate.unwrap_or(current_meta.duration);
-
         let load_new_frame = match self.state {
-            AppState::Play => self.last_update.elapsed() >= refresh_duration,
-            AppState::Next | AppState::Previous => self.index != self.loaded_index,
+            AppState::Play => {
+                if self.loaded_frame.repeat_first_field() {
+                    // 1.5 refresh duration
+                    self.last_update.elapsed() >= self.loaded_frame.duration.mul_f32(1.5)
+                } else {
+                    // 1.0 refresh duration
+                    self.last_update.elapsed() >= self.loaded_frame.duration
+                }
+            }
+            AppState::Next | AppState::Previous => self.index != self.loaded_frame.id,
             AppState::Pause => false,
         };
-
-        // Switch to second field after half the refresh duration
-        if current_meta.picture_type != PictureType::Progressive
-            && self.state == AppState::Play
-            && self.last_update.elapsed() >= refresh_duration.div_f32(2.0)
-            && self.first_field
-        {
-            self.first_field = false;
-        }
 
         if load_new_frame {
             // Update the last_update time
@@ -129,6 +158,17 @@ impl eframe::App for MyApp {
 
             // Retrieve the right image path to load
             let path = &self.pathfile[index];
+
+            let meta = self.meta.as_ref().map_or(None, |meta| Some(&meta[index]));
+            self.loaded_frame = MpegFrame {
+                id: index as isize,
+                mode: self
+                    .mode
+                    .unwrap_or(meta.map_or(FrameMode::PROG, |meta| meta.picture_type)),
+                duration: self
+                    .refresh_rate
+                    .unwrap_or(meta.map_or(Duration::from_nanos(40_000_000), |meta| meta.duration)),
+            };
 
             // Print the path of the image to load (only in debug mode)
             #[cfg(debug_assertions)]
@@ -167,23 +207,25 @@ impl eframe::App for MyApp {
             // Convert the image to a ColorImage
             let image = epaint::ColorImage::from_rgba_unmultiplied(
                 size,
-                match current_meta.picture_type {
-                    PictureType::Progressive => &pixels,
-                    PictureType::RepeatFirstField => top_pixels,
-                    PictureType::TopFieldFirst => top_pixels,
-                    PictureType::BottomFieldFirst => bot_pixels,
+                match self.loaded_frame.mode {
+                    FrameMode::PROG => &pixels,
+                    FrameMode::RFF_TFF => &top_pixels,
+                    FrameMode::RFF_BFF => &bot_pixels,
+                    FrameMode::TFF => &top_pixels,
+                    FrameMode::BFF => &bot_pixels,
                 },
             );
 
             self.texture_1.set(image, Default::default());
 
-            if current_meta.picture_type != PictureType::Progressive {
+            if self.loaded_frame.interlaced() {
                 let image = epaint::ColorImage::from_rgba_unmultiplied(
                     size,
-                    match current_meta.picture_type {
-                        PictureType::RepeatFirstField => top_pixels,
-                        PictureType::TopFieldFirst => bot_pixels,
-                        PictureType::BottomFieldFirst => top_pixels,
+                    match self.loaded_frame.mode {
+                        FrameMode::RFF_TFF => &bot_pixels,
+                        FrameMode::RFF_BFF => &top_pixels,
+                        FrameMode::TFF => &bot_pixels,
+                        FrameMode::BFF => &top_pixels,
                         _ => unreachable!(),
                     },
                 );
@@ -191,22 +233,48 @@ impl eframe::App for MyApp {
                 self.texture_2.set(image, Default::default());
             }
 
-            self.loaded_index = self.index;
-
             if self.state == AppState::Play {
                 self.index += 1;
-                self.first_field = true;
+                self.field_display_idx = 0;
+            }
+        }
+
+        // If interlaced, switch field
+        if self.loaded_frame.interlaced() && self.state == AppState::Play {
+            if self.loaded_frame.repeat_first_field() {
+                // First      First      Second
+                // [0.0; 0.5[ [0.5; 1.0[ [1.0; 1.5]
+                if self.last_update.elapsed() >= self.loaded_frame.duration {
+                    self.field_display_idx = 2; // display second field after 1.0 refresh duration
+                } else if self.last_update.elapsed() >= self.loaded_frame.duration.div_f32(2.0) {
+                    self.field_display_idx = 1; // display first field after 0.5 refresh duration
+                }
+            } else {
+                // First      Second
+                // [0.0; 0.5[ [0.5; 1.0[
+                if self.last_update.elapsed() >= self.loaded_frame.duration.div_f32(2.0) {
+                    self.field_display_idx = 1; // display second field after 0.5 refresh duration
+                }
             }
         }
 
         match self.state {
             // Request a repaint after the refresh rate (takes into account the time it took to load the image)
-            AppState::Play => ctx.request_repaint_after(
-                refresh_duration
-                    .div_f32(2.0)
-                    .checked_sub(Instant::now() - self.last_update)
-                    .unwrap_or(Duration::from_secs(0)),
-            ),
+            AppState::Play => {
+                let delay = if self.loaded_frame.interlaced() {
+                    self.loaded_frame
+                        .duration
+                        .mul_f32((self.field_display_idx as f32 + 1.0) * 0.5)
+                        .checked_sub(self.last_update.elapsed())
+                        .unwrap_or_default()
+                } else {
+                    self.loaded_frame
+                        .duration
+                        .checked_sub(self.last_update.elapsed())
+                        .unwrap_or_default()
+                };
+                ctx.request_repaint_after(delay)
+            }
             AppState::Next | AppState::Previous => self.state = AppState::Pause,
             _ => (),
         }
@@ -225,10 +293,18 @@ impl eframe::App for MyApp {
                 let next = ui.button("Next");
 
                 ui.add(egui::Label::new(format!(
-                    "Frame {}/{} - {:.2} fps",
+                    "Frame {}/{}",
                     (self.index + 1) % nb_img,
                     nb_img,
-                    self.last_fps,
+                )));
+
+                if self.state == AppState::Play {
+                    ui.add(egui::Label::new(format!("{:.2} fps", self.last_fps,)));
+                }
+
+                ui.add(egui::Label::new(format!(
+                    "Mode {:?}",
+                    self.loaded_frame.mode
                 )));
 
                 if play_pause.clicked() {
@@ -241,36 +317,44 @@ impl eframe::App for MyApp {
                 };
 
                 if prev.clicked() {
-                    ctx.request_repaint();
-                    if current_meta.picture_type != PictureType::Progressive {
-                        if self.first_field {
+                    if self.loaded_frame.interlaced() {
+                        if self.field_display_idx <= 0 {
+                            self.field_display_idx = self.loaded_frame.second_field_display_idx();
                             self.index -= 1;
+                        } else {
+                            self.field_display_idx -= 1;
                         }
-                        self.first_field = !self.first_field;
                     } else {
                         self.index -= 1;
                     }
                     self.state = AppState::Previous;
+                    ctx.request_repaint();
                 }
 
                 if next.clicked() {
-                    ctx.request_repaint();
-                    if current_meta.picture_type != PictureType::Progressive {
-                        if !self.first_field {
+                    if self.loaded_frame.interlaced() {
+                        if self.field_display_idx >= self.loaded_frame.second_field_display_idx() {
+                            self.field_display_idx = 0;
                             self.index += 1;
+                        } else {
+                            self.field_display_idx += 1;
                         }
-                        self.first_field = !self.first_field;
                     } else {
                         self.index += 1;
                     }
                     self.state = AppState::Next;
+                    ctx.request_repaint();
                 }
             });
 
-            if self.first_field {
+            if !self.loaded_frame.interlaced() {
                 ui.image(&self.texture_1, self.texture_1.size_vec2());
             } else {
-                ui.image(&self.texture_2, self.texture_2.size_vec2());
+                if self.field_display_idx < self.loaded_frame.second_field_display_idx() {
+                    ui.image(&self.texture_1, self.texture_1.size_vec2());
+                } else {
+                    ui.image(&self.texture_2, self.texture_2.size_vec2());
+                }
             }
         });
     }

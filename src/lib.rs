@@ -1,4 +1,5 @@
 mod display;
+mod flag;
 mod image;
 mod metadata_parser;
 mod pgm_parser;
