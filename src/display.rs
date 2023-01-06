@@ -19,7 +19,7 @@ enum AppState {
 
 #[derive(Debug)]
 struct MpegFrame {
-    pub id: isize,
+    pub id: usize,
     pub mode: FrameMode,
     pub duration: Duration,
 }
@@ -47,7 +47,7 @@ pub struct MyApp {
     mode: Option<FrameMode>,
     meta: Option<Vec<Picture>>,
 
-    index: isize,
+    index: usize,
     loaded_frame: MpegFrame,
 
     field_display_idx: i8,
@@ -59,7 +59,7 @@ pub struct MyApp {
     last_update: Instant,
     refresh_rate: Option<Duration>,
 
-    last_fps_update: (Instant, isize),
+    last_fps_update: (Instant, usize),
     last_fps: f64,
 
     global_vec: Vec<u8>,
@@ -121,18 +121,28 @@ impl MyApp {
             rgb_image: RgbImage::with_capacity(0, 0),
         }
     }
+
+    pub fn incr_index(&mut self) {
+        self.index = (self.index + 1) % self.pathfile.len();
+    }
+    pub fn decr_index(&mut self) {
+        self.index = if self.index == 0 {
+            self.pathfile.len() - 1
+        } else {
+            self.index - 1
+        };
+    }
 }
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
-        let nb_img = self.pathfile.len() as isize;
-        let index = self.index.rem_euclid(nb_img) as usize;
+        let nb_img = self.pathfile.len();
 
         let (last_update, last_index) = self.last_fps_update;
         let last_update = last_update.elapsed().as_secs_f64();
         if self.state == AppState::Play && last_update >= 1f64 {
-            self.last_fps_update = (Instant::now(), self.index);
-            self.last_fps = ((self.index - last_index) as f64) / last_update;
+            self.last_fps_update = (Instant::now(), self.index as usize);
+            self.last_fps = (self.index - last_index) as f64 / last_update;
             if self.loaded_frame.interlaced() {
                 self.last_fps *= 2f64;
             }
@@ -157,11 +167,14 @@ impl eframe::App for MyApp {
             self.last_update = Instant::now();
 
             // Retrieve the right image path to load
-            let path = &self.pathfile[index];
+            let path = &self.pathfile[self.index];
 
-            let meta = self.meta.as_ref().map_or(None, |meta| Some(&meta[index]));
+            let meta = self
+                .meta
+                .as_ref()
+                .map_or(None, |meta| Some(&meta[self.index]));
             self.loaded_frame = MpegFrame {
-                id: index as isize,
+                id: self.index,
                 mode: self
                     .mode
                     .unwrap_or(meta.map_or(FrameMode::PROG, |meta| meta.picture_type)),
@@ -234,7 +247,7 @@ impl eframe::App for MyApp {
             }
 
             if self.state == AppState::Play {
-                self.index += 1;
+                self.incr_index();
                 self.field_display_idx = 0;
             }
         }
@@ -320,12 +333,12 @@ impl eframe::App for MyApp {
                     if self.loaded_frame.interlaced() {
                         if self.field_display_idx <= 0 {
                             self.field_display_idx = self.loaded_frame.second_field_display_idx();
-                            self.index -= 1;
+                            self.decr_index();
                         } else {
                             self.field_display_idx -= 1;
                         }
                     } else {
-                        self.index -= 1;
+                        self.decr_index();
                     }
                     self.state = AppState::Previous;
                     ctx.request_repaint();
@@ -335,12 +348,12 @@ impl eframe::App for MyApp {
                     if self.loaded_frame.interlaced() {
                         if self.field_display_idx >= self.loaded_frame.second_field_display_idx() {
                             self.field_display_idx = 0;
-                            self.index += 1;
+                            self.incr_index();
                         } else {
                             self.field_display_idx += 1;
                         }
                     } else {
-                        self.index += 1;
+                        self.incr_index();
                     }
                     self.state = AppState::Next;
                     ctx.request_repaint();
