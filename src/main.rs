@@ -35,6 +35,10 @@ fn main() {
 
     let meta = mpeg2::meta_decode(&PathBuf::new().join(&pathdir).join("tvid.log"));
     if mode.is_none() && meta.is_err() {
+        eprintln!(
+            "\n\nError while parsing metadata {:?}\n\n",
+            meta.as_ref().err()
+        );
         panic!("Error while parsing metadata {:?}", meta.err());
     }
 

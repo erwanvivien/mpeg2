@@ -16,8 +16,8 @@ pub struct Picture {
     id: usize,
 }
 
-pub fn meta_decode(path: &PathBuf) -> Result<Vec<Picture>, &'static str> {
-    let file = File::open(path).map_err(|_| "Could not open file")?;
+pub fn meta_decode(path: &PathBuf) -> Result<Vec<Picture>, String> {
+    let file = File::open(path).map_err(|_| format!("Could not open `tvid.log` at {:?}", path))?;
     let mut reader = BufReader::new(file);
 
     let mut sequence_frame_period = None;
@@ -44,7 +44,7 @@ pub fn meta_decode(path: &PathBuf) -> Result<Vec<Picture>, &'static str> {
             last = pictures.len()
         } else if line.starts_with("PIC") {
             if words.len() < 3 {
-                return Err("line PIC doesn't contain enough fields");
+                return Err("line PIC doesn't contain enough fields".into());
             }
 
             let temp_ref = words[2]
