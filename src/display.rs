@@ -1,4 +1,5 @@
 use std::{
+    ops::Div,
     path::PathBuf,
     time::{Duration, Instant},
 };
@@ -64,6 +65,7 @@ pub struct MyApp {
     last_fps: f64,
 
     rgb_image: RgbImage,
+    prev_pixels: Array2<u8>,
 }
 
 impl MyApp {
@@ -118,6 +120,7 @@ impl MyApp {
             last_fps: 0f64,
 
             rgb_image: RgbImage::with_capacity(0, 0),
+            prev_pixels: Array2::zeros((0, 0)),
         }
     }
 
@@ -190,11 +193,12 @@ impl eframe::App for MyApp {
             decode(path, &mut self.rgb_image).unwrap();
 
             let img = &self.rgb_image;
-            let size = [img.width(), img.height()];
+            let mut size = [img.width(), img.height()];
 
             let pixels =
                 Array2::from_shape_vec((img.height(), img.width() * 4), img.get_rgba()).unwrap();
 
+            // [height / 2, width * 4]
             let mut top_field = pixels.clone();
             top_field
                 .slice_mut(s![1isize..;2, ..])
@@ -204,6 +208,87 @@ impl eframe::App for MyApp {
             bot_field
                 .slice_mut(s![..;2, ..])
                 .assign(&pixels.slice(s![1isize..;2, ..]));
+
+            if !self.prev_pixels.is_empty() {
+                let curr_top_field = pixels.slice(s![..;2, ..]);
+                let curr_bot_field = pixels.slice(s![1isize..;2, ..]);
+
+                let prev_top_field = self.prev_pixels.slice(s![..;2, ..]);
+                let prev_bot_field = self.prev_pixels.slice(s![1isize..;2, ..]);
+
+                const THRESHOLD: f32 = 0.05f32;
+                const BLOCK_SIZE: usize = 8;
+                const CHUNK_SIZE: (usize, usize) = (BLOCK_SIZE / 2, BLOCK_SIZE * 4);
+
+                let error_size = (img.height() / BLOCK_SIZE, img.width() / BLOCK_SIZE);
+
+                let errors_vec = prev_top_field
+                    .exact_chunks(CHUNK_SIZE)
+                    .into_iter()
+                    .zip(curr_top_field.exact_chunks(CHUNK_SIZE))
+                    .map(|(prev, curr)| {
+                        prev.iter()
+                            .zip(curr.iter())
+                            .map(|(prev, curr)| (*prev as f32 - *curr as f32).abs())
+                            .sum::<f32>()
+                            .div(CHUNK_SIZE.0 as f32 * CHUNK_SIZE.1 as f32 * 255f32)
+                    })
+                    .collect::<Vec<f32>>();
+
+                let mut error = Array2::from_shape_vec(error_size, errors_vec).unwrap();
+
+                let errors_vec = prev_bot_field
+                    .exact_chunks(CHUNK_SIZE)
+                    .into_iter()
+                    .zip(curr_bot_field.exact_chunks(CHUNK_SIZE))
+                    .map(|(prev, curr)| {
+                        prev.iter()
+                            .zip(curr.iter())
+                            .map(|(prev, curr)| (*prev as f32 - *curr as f32).abs())
+                            .sum::<f32>()
+                            .div(CHUNK_SIZE.0 as f32 * CHUNK_SIZE.1 as f32 * 255f32)
+                    })
+                    .collect();
+
+                let error_bot = Array2::from_shape_vec(error_size, errors_vec).unwrap();
+
+                error.zip_mut_with(&error_bot, |e_top, e_bot| {
+                    *e_top = e_top.max(*e_bot);
+                });
+
+                error.indexed_iter().for_each(|((i, j), err)| {
+                    let row_start = j * CHUNK_SIZE.1;
+                    let row_end = (j + 1) * CHUNK_SIZE.1;
+
+                    let line_start = i * CHUNK_SIZE.0;
+                    let line_end = (i + 1) * CHUNK_SIZE.0;
+
+                    let prev_bot =
+                        prev_bot_field.slice(s![line_start..line_end, row_start..row_end]);
+                    let curr_top =
+                        curr_bot_field.slice(s![line_start..line_end, row_start..row_end]);
+
+                    let line_s = i * BLOCK_SIZE;
+                    let line_e = (i + 1) * BLOCK_SIZE;
+
+                    if *err <= THRESHOLD {
+                        // WEAVE
+                        top_field
+                            .slice_mut(s![line_s..line_e;2, row_start..row_end])
+                            .assign(&curr_top);
+                        top_field
+                            .slice_mut(s![(line_s + 1)..line_e;2, row_start..row_end])
+                            .assign(&prev_bot);
+
+                        bot_field
+                            .slice_mut(s![line_s..line_e;2, row_start..row_end])
+                            .assign(&curr_top);
+                        bot_field
+                            .slice_mut(s![(line_s + 1)..line_e;2, row_start..row_end])
+                            .assign(&prev_bot)
+                    }
+                });
+            }
 
             // Convert the image to a ColorImage
             let image = epaint::ColorImage::from_rgba_unmultiplied(
@@ -240,7 +325,8 @@ impl eframe::App for MyApp {
                 self.texture_2.set(image, Default::default());
             }
 
-            // std::mem::swap(&mut self.curr_pixels, &mut self.prev_pixels);
+            // std::mem::swap(&mut pixels, &mut self.prev_pixels);
+            self.prev_pixels = pixels.clone();
 
             if self.state == AppState::Play {
                 self.incr_index();
