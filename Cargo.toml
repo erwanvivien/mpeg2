@@ -13,3 +13,5 @@ epaint = { version = "0.20" }
 regex = { version = "1.7" }
 # Argument parsing
 clap = { version = "4.0", features = ["derive"] }
+
+ndarray = { version = "0.15.6" }
