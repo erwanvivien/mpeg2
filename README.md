@@ -4,6 +4,19 @@ Ce projet a été réalisé dans le cadre du cours de TVID à l'EPITA.
 
 ## Partie A - Décoder une vidéo MPEG2
 
+### 0. Installer Rust
+
+Si Rust n'est pas installé, il faut l'installer avec [rustup](https://rustup.rs/).
+
+Sous bash :
+
+```bash
+$ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+Sous Windows : \
+[https://win.rustup.rs/x86_64](https://win.rustup.rs/x86_64)
+
 ### 1. Visualiser une vidéo MPEG2
 
 ```bash
