@@ -8,6 +8,7 @@ use eframe::{
     egui::{self, ColorImage, Context},
     Frame,
 };
+use ndarray::{s, Array2};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum AppState {
@@ -19,7 +20,7 @@ enum AppState {
 
 #[derive(Debug)]
 struct MpegFrame {
-    pub id: isize,
+    pub id: usize,
     pub mode: FrameMode,
     pub duration: Duration,
 }
@@ -47,7 +48,7 @@ pub struct MyApp {
     mode: Option<FrameMode>,
     meta: Option<Vec<Picture>>,
 
-    index: isize,
+    index: usize,
     loaded_frame: MpegFrame,
 
     field_display_idx: i8,
@@ -59,10 +60,9 @@ pub struct MyApp {
     last_update: Instant,
     refresh_rate: Option<Duration>,
 
-    last_fps_update: (Instant, isize),
+    last_fps_update: (Instant, usize),
     last_fps: f64,
 
-    global_vec: Vec<u8>,
     rgb_image: RgbImage,
 }
 
@@ -117,22 +117,31 @@ impl MyApp {
             last_fps_update: (Instant::now(), 0),
             last_fps: 0f64,
 
-            global_vec: Vec::new(),
             rgb_image: RgbImage::with_capacity(0, 0),
         }
+    }
+
+    pub fn incr_index(&mut self) {
+        self.index = (self.index + 1) % self.pathfile.len();
+    }
+    pub fn decr_index(&mut self) {
+        self.index = if self.index == 0 {
+            self.pathfile.len() - 1
+        } else {
+            self.index - 1
+        };
     }
 }
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
-        let nb_img = self.pathfile.len() as isize;
-        let index = self.index.rem_euclid(nb_img) as usize;
+        let nb_img = self.pathfile.len();
 
         let (last_update, last_index) = self.last_fps_update;
         let last_update = last_update.elapsed().as_secs_f64();
         if self.state == AppState::Play && last_update >= 1f64 {
-            self.last_fps_update = (Instant::now(), self.index);
-            self.last_fps = ((self.index - last_index) as f64) / last_update;
+            self.last_fps_update = (Instant::now(), self.index as usize);
+            self.last_fps = (self.index - last_index) as f64 / last_update;
             if self.loaded_frame.interlaced() {
                 self.last_fps *= 2f64;
             }
@@ -157,11 +166,14 @@ impl eframe::App for MyApp {
             self.last_update = Instant::now();
 
             // Retrieve the right image path to load
-            let path = &self.pathfile[index];
+            let path = &self.pathfile[self.index];
 
-            let meta = self.meta.as_ref().map_or(None, |meta| Some(&meta[index]));
+            let meta = self
+                .meta
+                .as_ref()
+                .map_or(None, |meta| Some(&meta[self.index]));
             self.loaded_frame = MpegFrame {
-                id: index as isize,
+                id: self.index,
                 mode: self
                     .mode
                     .unwrap_or(meta.map_or(FrameMode::PROG, |meta| meta.picture_type)),
@@ -179,41 +191,33 @@ impl eframe::App for MyApp {
 
             let img = &self.rgb_image;
             let size = [img.width(), img.height()];
-            let pixels = img.get_rgba();
-            if self.global_vec.len() != pixels.len() * 2 {
-                self.global_vec = vec![0; pixels.len() * 2];
-            }
 
-            // Skip field + vertical nearest neighbour upscaling
-            let row_nb_bytes = img.width() * 4;
-            let idx = (0..img.height())
-                .step_by(2)
-                .chain((1..img.height()).step_by(2));
+            let pixels =
+                Array2::from_shape_vec((img.height(), img.width() * 4), img.get_rgba()).unwrap();
 
-            for (i, idx) in idx.enumerate() {
-                let start = idx * row_nb_bytes;
-                let end = (idx + 1) * row_nb_bytes;
-                let row = &pixels[start..end];
+            let mut top_field = pixels.clone();
+            top_field
+                .slice_mut(s![1isize..;2, ..])
+                .assign(&pixels.slice(s![..;2, ..]));
 
-                let i = i * 2;
-                self.global_vec[i * row_nb_bytes..(i + 1) * row_nb_bytes].copy_from_slice(row);
-                self.global_vec[(i + 1) * row_nb_bytes..(i + 2) * row_nb_bytes]
-                    .copy_from_slice(row);
-            }
-
-            let top_pixels = &self.global_vec[..pixels.len()];
-            let bot_pixels = &self.global_vec[pixels.len()..];
+            let mut bot_field = pixels.clone();
+            bot_field
+                .slice_mut(s![..;2, ..])
+                .assign(&pixels.slice(s![1isize..;2, ..]));
 
             // Convert the image to a ColorImage
             let image = epaint::ColorImage::from_rgba_unmultiplied(
                 size,
                 match self.loaded_frame.mode {
                     FrameMode::PROG => &pixels,
-                    FrameMode::RFF_TFF => &top_pixels,
-                    FrameMode::RFF_BFF => &bot_pixels,
-                    FrameMode::TFF => &top_pixels,
-                    FrameMode::BFF => &bot_pixels,
-                },
+                    FrameMode::RFF_TFF => &top_field,
+                    FrameMode::RFF_BFF => &bot_field,
+                    FrameMode::TFF => &top_field,
+                    FrameMode::BFF => &bot_field,
+                }
+                .as_standard_layout()
+                .as_slice()
+                .unwrap(),
             );
 
             self.texture_1.set(image, Default::default());
@@ -222,19 +226,24 @@ impl eframe::App for MyApp {
                 let image = epaint::ColorImage::from_rgba_unmultiplied(
                     size,
                     match self.loaded_frame.mode {
-                        FrameMode::RFF_TFF => &bot_pixels,
-                        FrameMode::RFF_BFF => &top_pixels,
-                        FrameMode::TFF => &bot_pixels,
-                        FrameMode::BFF => &top_pixels,
+                        FrameMode::RFF_TFF => &bot_field,
+                        FrameMode::RFF_BFF => &top_field,
+                        FrameMode::TFF => &bot_field,
+                        FrameMode::BFF => &top_field,
                         _ => unreachable!(),
-                    },
+                    }
+                    .as_standard_layout()
+                    .as_slice()
+                    .unwrap(),
                 );
 
                 self.texture_2.set(image, Default::default());
             }
 
+            // std::mem::swap(&mut self.curr_pixels, &mut self.prev_pixels);
+
             if self.state == AppState::Play {
-                self.index += 1;
+                self.incr_index();
                 self.field_display_idx = 0;
             }
         }
@@ -320,12 +329,12 @@ impl eframe::App for MyApp {
                     if self.loaded_frame.interlaced() {
                         if self.field_display_idx <= 0 {
                             self.field_display_idx = self.loaded_frame.second_field_display_idx();
-                            self.index -= 1;
+                            self.decr_index();
                         } else {
                             self.field_display_idx -= 1;
                         }
                     } else {
-                        self.index -= 1;
+                        self.decr_index();
                     }
                     self.state = AppState::Previous;
                     ctx.request_repaint();
@@ -335,12 +344,12 @@ impl eframe::App for MyApp {
                     if self.loaded_frame.interlaced() {
                         if self.field_display_idx >= self.loaded_frame.second_field_display_idx() {
                             self.field_display_idx = 0;
-                            self.index += 1;
+                            self.incr_index();
                         } else {
                             self.field_display_idx += 1;
                         }
                     } else {
-                        self.index += 1;
+                        self.incr_index();
                     }
                     self.state = AppState::Next;
                     ctx.request_repaint();
