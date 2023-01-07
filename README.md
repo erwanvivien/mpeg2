@@ -30,7 +30,7 @@ Usage: mpeg2.exe [OPTIONS]
 Options:
   -p, --pathdir <PATHDIR>  [default: videos/pendulum]
   -f, --fps <FPS>
-  -m, --mode <MODE>
+  -m, --mode <MODE>        [PROG] [RFF] [TFF]
   -h, --help               Print help information
   -V, --version            Print version information
 ```

@@ -70,6 +70,6 @@ BBRR   <-- 1 ligne de Cb / Cr (hauteur * 1/3)
 
 1. Fait
 
-2. On observe beaucoup d'amélioration (et surtout moins de clignotements). On n'a plus a update quand une partie de l'image est statique.
+2. On observe moins de clignotements dans les zones statiques de l'image car celles-ci sont weavés, elles retrouvent donc leur état original (pré-encodage).
 
 3. Fait
