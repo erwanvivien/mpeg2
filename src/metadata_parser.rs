@@ -9,7 +9,7 @@ use std::{fs::File, io::BufReader, path::PathBuf};
 
 use crate::flag::FrameMode;
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Debug, PartialEq, PartialOrd, Eq, Ord)]
 pub struct Picture {
     pub duration: Duration,
     pub picture_type: FrameMode,
