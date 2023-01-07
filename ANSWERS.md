@@ -41,8 +41,8 @@ BBRR   <-- 1 ligne de Cb / Cr (hauteur * 1/3)
 
 2. Nous avons utilisé les commandes suivantes pour générer les PGMs à partir d'un PID de MPEG-TS :
 
--   `ffplay videos/ts/cnn.ts` afin d'identifier les streams à extraire
--   `./tools/mpeg2dec/src/mpeg2dec videos/ts/cnn.ts -t 0x1422 -o pgm -l -v`
+- `ffplay videos/ts/cnn.ts` afin d'identifier les streams à extraire
+- `./tools/mpeg2dec/src/mpeg2dec videos/ts/cnn.ts -t 0x1422 -o pgm -l -v`
 
 3. `cargo run --release -- --pathdir="./videos/ts/cnn_pgm"`
 
@@ -65,3 +65,11 @@ BBRR   <-- 1 ligne de Cb / Cr (hauteur * 1/3)
 5. Fait
 
 6. On remarque le schéma de conversion film vers NTSC sur la vidéo (3:2 pulldown).
+
+## Partie D - Vers un meilleur désentrelaceur
+
+1. Fait
+
+2. On observe beaucoup d'amélioration (et surtout moins de clignotements). On n'a plus a update quand une partie de l'image est statique.
+
+3. Fait
