@@ -6,9 +6,9 @@
 
 2. Nous avons utilisé le binaire `mpeg2dec` pour décoder les vidéos MPEG2 en séquence d'image en format PGM (P5).
 
-3. Les PGMs générés sont structuré en 3 parties, la chroma (Y) et les deux autres composantes (Cb et Cr). \
+3. Les PGMs générés sont structurés en 3 parties, la chroma (Y) et les deux autres composantes (Cb et Cr). \
    Nous avons principalement des images YUV 4:2:0. Les premières rangées de pixels composent la composante Y, \
-   puis une fois les 2/3 de la hauteur de l'image atteint, les rangées suivantes composent les composantes Cb et Cr \
+   puis une fois les 2/3 de la hauteur de l'image atteints, les rangées suivantes représentent les composantes Cb et Cr \
     (les deux composantes sont mélangées dans une rangée).
 
 Une image ressemble à ça :
@@ -27,7 +27,7 @@ BBRR   <-- 1 ligne de Cb / Cr (hauteur * 1/3)
 
 6. On a choisi de render en PPM ainsi que de rendre à l'écran.
 
-7. L'option `--fps [fps]` permet de spécifier le nombre d'images par seconde à afficher.
+7. L'option `--fps <fps>` permet de spécifier le nombre d'images par seconde à afficher.
 
 8. Comme la question 4) avec le frame_period de chaque séquence en plus.
 
@@ -41,8 +41,8 @@ BBRR   <-- 1 ligne de Cb / Cr (hauteur * 1/3)
 
 2. Nous avons utilisé les commandes suivantes pour générer les PGMs à partir d'un PID de MPEG-TS :
 
--   `ffplay videos/ts/cnn.ts`
--   `./tools/mpeg2dec/src/mpeg2dec videos/ts/cnn.ts -t 0x1422 -o pgm`
+- `ffplay videos/ts/cnn.ts` afin d'identifier les streams à extraire
+- `./tools/mpeg2dec/src/mpeg2dec videos/ts/cnn.ts -t 0x1422 -o pgm`
 
 3. `cargo run --release -- --pathdir="./videos/ts/cnn_pgm"`
 
@@ -64,4 +64,4 @@ BBRR   <-- 1 ligne de Cb / Cr (hauteur * 1/3)
 
 5. Fait
 
-6. TODO
+6. On remarque le schéma de conversion film vers NTSC sur la vidéo (3:2 pulldown).
