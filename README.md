@@ -25,7 +25,9 @@ cargo run --release -- --pathdir="./videos/elementary"
 
 ### 2. Comment utiliser l'application
 
-Il faut d'abord générer les PGMs à partir de la vidéo MPEG2.
+Il faut d'abord générer les PGMs et le fichier de log (tvid.log) à partir de la vidéo MPEG2.
+
+Les divers fichiers seront générés dans le dossier courant.
 
 ```bash
 $ ./tools/mpeg2dec/src/mpeg2dec videos/elementary/pendulum.m2v -o pgm -l -v
@@ -41,9 +43,9 @@ MPEG2 Decoder
 Usage: mpeg2.exe [OPTIONS]
 
 Options:
-  -p, --pathdir <PATHDIR>  [default: videos/pendulum]
+  -p, --pathdir <PATHDIR>  Folder containing *.pgm and tvid.log files (default: videos/pendulum)
   -f, --fps <FPS>
-  -m, --mode <MODE>        [PROG] [RFF] [TFF]
+  -m, --mode <MODE>        "[PROG] [RFF] [TFF]"
   -t, --threshold <t>      Weaving threshold
   -h, --help               Print help information
   -V, --version            Print version information
