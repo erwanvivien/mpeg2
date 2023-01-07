@@ -41,8 +41,8 @@ BBRR   <-- 1 ligne de Cb / Cr (hauteur * 1/3)
 
 2. Nous avons utilisé les commandes suivantes pour générer les PGMs à partir d'un PID de MPEG-TS :
 
-- `ffplay videos/ts/cnn.ts` afin d'identifier les streams à extraire
-- `./tools/mpeg2dec/src/mpeg2dec videos/ts/cnn.ts -t 0x1422 -o pgm -l -v`
+-   `ffplay videos/ts/cnn.ts` afin d'identifier les streams à extraire
+-   `./tools/mpeg2dec/src/mpeg2dec videos/ts/cnn.ts -t 0x1422 -o pgm -l -v`
 
 3. `cargo run --release -- --pathdir="./videos/ts/cnn_pgm"`
 
@@ -50,7 +50,7 @@ BBRR   <-- 1 ligne de Cb / Cr (hauteur * 1/3)
 
 5. Le flag progressive n'apparaît pour aucune des séquences alors que la moitié des frames sont progressives. L'encodeur a sûrement fait une erreur pour la séquence en considérant des images progressives alors qu'elles ne l'étaient pas.
 
-6. Nous pouvons forcer le désentrelaceur pour chaque vidéo. Cela n'aura que très peu d'impact sur celles dont les séquences sont progressives.
+6. Nous pouvons forcer le désentrelaceur pour toutes les séquences. Cela n'aura que très peu d'impact même sur celles catégorisées comme étant progressives. Cela permettra de jouer convenablement le fichier.
 
 ## Partie C - Jouer un flux vidéo de chaînes de divertissement asiatiques
 
@@ -58,7 +58,7 @@ BBRR   <-- 1 ligne de Cb / Cr (hauteur * 1/3)
 
 2. Fait
 
-3. On remarque sur la séquence des effets que la vidéo est ralentie alors que les effets ne le sont pas.
+3. On remarque sur la séquence que les images des effets sur le gâteau sont progressives, contrairement au reste de l'image.
 
 4. Le PID du premier flux vidéo est 0x3e9.
 
