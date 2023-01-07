@@ -193,9 +193,8 @@ impl eframe::App for MyApp {
             decode(path, &mut self.rgb_image).unwrap();
 
             let img = &self.rgb_image;
-            let mut size = [img.width(), img.height()];
 
-            let pixels =
+            let mut pixels =
                 Array2::from_shape_vec((img.height(), img.width() * 4), img.get_rgba()).unwrap();
 
             // [height / 2, width * 4]
@@ -209,7 +208,7 @@ impl eframe::App for MyApp {
                 .slice_mut(s![..;2, ..])
                 .assign(&pixels.slice(s![1isize..;2, ..]));
 
-            if !self.prev_pixels.is_empty() {
+            if self.loaded_frame.interlaced() && !self.prev_pixels.is_empty() {
                 let curr_top_field = pixels.slice(s![..;2, ..]);
                 let curr_bot_field = pixels.slice(s![1isize..;2, ..]);
 
@@ -257,22 +256,23 @@ impl eframe::App for MyApp {
                 });
 
                 error.indexed_iter().for_each(|((i, j), err)| {
-                    let row_start = j * CHUNK_SIZE.1;
-                    let row_end = (j + 1) * CHUNK_SIZE.1;
-
-                    let line_start = i * CHUNK_SIZE.0;
-                    let line_end = (i + 1) * CHUNK_SIZE.0;
-
-                    let prev_bot =
-                        prev_bot_field.slice(s![line_start..line_end, row_start..row_end]);
-                    let curr_top =
-                        curr_bot_field.slice(s![line_start..line_end, row_start..row_end]);
-
-                    let line_s = i * BLOCK_SIZE;
-                    let line_e = (i + 1) * BLOCK_SIZE;
-
+                    // Weave zone if error is low enough
                     if *err <= THRESHOLD {
-                        // WEAVE
+                        let row_start = j * CHUNK_SIZE.1;
+                        let row_end = (j + 1) * CHUNK_SIZE.1;
+
+                        let line_start = i * CHUNK_SIZE.0;
+                        let line_end = (i + 1) * CHUNK_SIZE.0;
+
+                        let prev_bot =
+                            prev_bot_field.slice(s![line_start..line_end, row_start..row_end]);
+                        let curr_top =
+                            curr_bot_field.slice(s![line_start..line_end, row_start..row_end]);
+
+                        let line_s = i * BLOCK_SIZE;
+                        let line_e = (i + 1) * BLOCK_SIZE;
+
+                        // Weave T(current) + B(previous)
                         top_field
                             .slice_mut(s![line_s..line_e;2, row_start..row_end])
                             .assign(&curr_top);
@@ -292,7 +292,7 @@ impl eframe::App for MyApp {
 
             // Convert the image to a ColorImage
             let image = epaint::ColorImage::from_rgba_unmultiplied(
-                size,
+                [img.width(), img.height()],
                 match self.loaded_frame.mode {
                     FrameMode::PROG => &pixels,
                     FrameMode::RFF_TFF => &top_field,
@@ -309,7 +309,7 @@ impl eframe::App for MyApp {
 
             if self.loaded_frame.interlaced() {
                 let image = epaint::ColorImage::from_rgba_unmultiplied(
-                    size,
+                    [img.width(), img.height()],
                     match self.loaded_frame.mode {
                         FrameMode::RFF_TFF => &bot_field,
                         FrameMode::RFF_BFF => &top_field,
@@ -325,8 +325,7 @@ impl eframe::App for MyApp {
                 self.texture_2.set(image, Default::default());
             }
 
-            // std::mem::swap(&mut pixels, &mut self.prev_pixels);
-            self.prev_pixels = pixels.clone();
+            std::mem::swap(&mut pixels, &mut self.prev_pixels);
 
             if self.state == AppState::Play {
                 self.incr_index();
