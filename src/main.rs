@@ -16,6 +16,9 @@ struct Args {
 
     #[arg(short, long)]
     mode: Option<String>,
+
+    #[arg(short, long)]
+    threshold: Option<f32>,
 }
 
 fn main() {
@@ -25,6 +28,7 @@ fn main() {
         fps: img_per_second,
         pathdir,
         mode,
+        threshold,
     } = args;
 
     dbg!(img_per_second);
@@ -46,6 +50,7 @@ fn main() {
                 read_files(&pathdir),
                 img_per_second,
                 mode,
+                threshold,
                 meta,
             ))
         }),

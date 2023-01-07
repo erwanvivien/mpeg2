@@ -47,6 +47,7 @@ impl MpegFrame {
 pub struct MyApp {
     pathfile: Vec<PathBuf>,
     mode: Option<FrameMode>,
+    threshold: f32,
     meta: Option<Vec<Picture>>,
 
     index: usize,
@@ -81,6 +82,7 @@ impl MyApp {
         files: Vec<PathBuf>,
         img_per_second: Option<u64>,
         mode: Option<String>,
+        threshold: Option<f32>,
         meta: Option<Vec<Picture>>,
     ) -> Self {
         let default_texture_size = [480, 680];
@@ -89,6 +91,8 @@ impl MyApp {
             pathfile: files,
             mode: mode
                 .map(|m| FrameMode::from(m.trim().split_whitespace().collect::<Vec<_>>().iter())),
+
+            threshold: threshold.unwrap_or(0.05),
             meta,
 
             index: 0,
@@ -215,7 +219,6 @@ impl eframe::App for MyApp {
                 let prev_top_field = self.prev_pixels.slice(s![..;2, ..]);
                 let prev_bot_field = self.prev_pixels.slice(s![1isize..;2, ..]);
 
-                const THRESHOLD: f32 = 0.05f32;
                 const BLOCK_SIZE: usize = 8;
                 const CHUNK_SIZE: (usize, usize) = (BLOCK_SIZE / 2, BLOCK_SIZE * 4);
 
@@ -257,7 +260,7 @@ impl eframe::App for MyApp {
 
                 error.indexed_iter().for_each(|((i, j), err)| {
                     // Weave zone if error is low enough
-                    if *err <= THRESHOLD {
+                    if *err <= self.threshold {
                         let row_start = j * CHUNK_SIZE.1;
                         let row_end = (j + 1) * CHUNK_SIZE.1;
 

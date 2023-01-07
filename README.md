@@ -31,6 +31,7 @@ Options:
   -p, --pathdir <PATHDIR>  [default: videos/pendulum]
   -f, --fps <FPS>
   -m, --mode <MODE>        [PROG] [RFF] [TFF]
+  -t, --threshold <t>      Weaving threshold
   -h, --help               Print help information
   -V, --version            Print version information
 ```
