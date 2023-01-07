@@ -19,7 +19,7 @@ pub fn read_files(dir: &String) -> Vec<PathBuf> {
     let mut files = fs::read_dir(dir)
         .unwrap()
         .map(|res| res.map(|e| e.path()))
-        .filter(|path| path.as_ref().unwrap().extension().unwrap() == "pgm")
+        .filter(|path| path.as_ref().unwrap().extension() == Some("pgm".as_ref()))
         .collect::<Result<Vec<_>, _>>()
         .unwrap();
 
